@@ -1,10 +1,11 @@
 from PySide6.QtWidgets import QApplication, QMainWindow,QLabel,QToolBar, QFileDialog,QVBoxLayout, QWidget,QStatusBar, QSlider, QHBoxLayout
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QAction, QPixmap, QImage
+
 import sys
 import cv2
 import numpy as np
-from .processing import apply_window_level
+from .processing import apply_window_level, apply_clahe, apply_blur, apply_edges
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -44,6 +45,13 @@ class MainWindow(QMainWindow):
         open_action.triggered.connect(self.open_file)
         toolbar.addAction(open_action)
 
+        toolbar.addSeparator()
+        # checkable toggles
+        self.act_clahe = QAction("CLAHE", self); self.act_clahe.setCheckable(True); self.act_clahe.toggled.connect(self.refresh); toolbar.addAction(self.act_clahe)
+        self.act_blur  = QAction("Blur",   self); self.act_blur.setCheckable(True);  self.act_blur.toggled.connect(self.refresh);  toolbar.addAction(self.act_blur)
+        self.act_edges = QAction("Edges",  self); self.act_edges.setCheckable(True); self.act_edges.toggled.connect(self.refresh); toolbar.addAction(self.act_edges)
+
+
 
         self.img: np.ndarray | None = None
 
@@ -74,7 +82,17 @@ class MainWindow(QMainWindow):
     def current_view(self):
         if self.img is None:
             return None
-        return apply_window_level(self.img, self.brightness.value(), self.contrast.value())
+        #window level
+        out = apply_window_level(self.img, self.brightness.value(), self.contrast.value())
+
+        if self.act_clahe.isChecked():
+            out = apply_clahe(out)
+        if self.act_blur.isChecked():
+            out = apply_blur(out)
+        if self.act_edges.isChecked():
+            edges = apply_edges(out)                    # 0/255
+            out = np.maximum(out, (edges > 0) * 255).astype(np.uint8)  # overlay in white
+        return out
     def refresh(self):
         img = self.current_view()
         if img is None:
@@ -85,7 +103,8 @@ class MainWindow(QMainWindow):
         pix = QPixmap.fromImage(qimg)
         self.view.setPixmap(
             pix.scaled(self.view.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-        self.status.showMessage(f"Loaded {w}x{h} | B:{self.brightness.value()}  C:{self.contrast.value()}") 
+        self.status.showMessage(f"Loaded {w}x{h} | B:{self.brightness.value()}  C:{self.contrast.value()} | "
+                                f"CLAHE:{self.act_clahe.isChecked()} Blur:{self.act_blur.isChecked()} Edges:{self.act_edges.isChecked()}") 
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
