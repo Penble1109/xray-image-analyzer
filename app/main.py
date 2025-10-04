@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QApplication, QMainWindow,QLabel,QToolBar, QFileDialog,QVBoxLayout, QWidget,QStatusBar, QSlider, QHBoxLayout
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QAction, QPixmap, QImage
+from.io_utils import save_outputs
 
 import sys
 import cv2
@@ -44,6 +45,10 @@ class MainWindow(QMainWindow):
         open_action = QAction(QIcon.fromTheme("document-open"), "Open File", self)
         open_action.triggered.connect(self.open_file)
         toolbar.addAction(open_action)
+
+        act_export = QAction("Export", self)
+        act_export.triggered.connect(self.on_export)
+        toolbar.addAction(act_export)
 
         toolbar.addSeparator()
         # checkable toggles
@@ -109,6 +114,29 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, e):
         super().resizeEvent(e)
         self.refresh()
+    
+    def on_export(self):
+        img = self.current_view() if hasattr(self, "current_view") else None
+
+        if img is None:
+            self.status.showMessage("Nothing to export - opan an image first")
+            return 
+        flags = {
+        "clahe":  bool(getattr(self, "act_clahe", None) and self.act_clahe.isChecked()),
+        "blur":   bool(getattr(self, "act_blur", None) and self.act_blur.isChecked()),
+        "edges":  bool(getattr(self, "act_edges", None) and self.act_edges.isChecked()),
+         }
+
+        try:
+            img_path, json_path = save_outputs(
+                img=img,
+                flags=flags,
+                brightness=int(self.brightness.value()) if hasattr(self, "brightness") else 0,
+                contrast=int(self.contrast.value())     if hasattr(self, "contrast") else 0,
+         )
+            self.status.showMessage(f"Exported → {img_path.split('/')[-1]} + report.json", 4000)
+        except Exception as e:
+            self.status.showMessage(f"Export failed: {e}", 5000)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
